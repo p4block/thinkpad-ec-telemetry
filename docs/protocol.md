@@ -37,7 +37,7 @@ SBS0A into+2E. EC average differs from the gauge's separate SBS0B average.
 `cell-voltage.h` reads only a fixed list of addresses; no arbitrary address
 parameter or target write operation is exposed. Battery cache base800C24;
 manufacturer/name at+50/+60, voltage+2C, ManufacturerData+80. Candidate group
-words are at ManufacturerData+6,+8,+A. Valid flags, known identity, plausible
+words are at ManufacturerData+6,+8,+A. A verified G2HT35WW build ID, valid flags, known battery identity, plausible
 voltage range and sum-to-pack check gate outputs.
 
 Command90=95 invokes read32;91–93 target address;94–97 response in big-endian

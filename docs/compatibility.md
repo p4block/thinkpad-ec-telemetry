@@ -8,14 +8,16 @@
 
 A common EC chip makes reuse plausible, but does not establish identical
 firmware addresses, temperature routing, channel units or ACPI locks.
-The DMI guard identifies the original configuration, not the actual EC image.
-Ordinary-sensor testing can opt in using `experimental=1`; default is false.
-An ECLK acquisition failure must remain a refusal, not an excuse to remove locking.
+The driver reads the EC build ID from registers F0–F7 under ECLK. G2HT35WW
+is accepted regardless of BIOS vendor/version or machine-specific DMI strings.
+If that ID is unreadable or invalid, an exact ThinkPad X230 model match permits
+ordinary sensors. A different readable firmware ID requires `experimental=1`.
+The ACPI ECLK lock is required in all cases.
 
-Cell reads additionally require the original DMI and SANYO/LNV-45N1023 identity.
-They depend on fixed G2HT35WW RAM addresses and a public-firmware debug key;
-they remain disabled by default. This is intentionally narrower than ordinary
-paged sensor access. The tested pack is aftermarket; reported identity need
+Cell reads require a positively identified G2HT35WW EC plus the tested
+SANYO/LNV-45N1023 battery format. Neither the X230 model fallback nor
+`experimental=1` bypasses this fixed-RAM-layout requirement. Cell readings
+remain disabled by default. The tested pack is aftermarket; its identity need
 not establish the origin or age of its cells.
 
 Two captures showed three probable series-group voltages whose sum tracked

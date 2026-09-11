@@ -47,6 +47,8 @@ The adapter is disconnected in this example, so zero charger readings do not mea
 
 Standard thermal, current, and charger telemetry operate without special EC keys and are candidates for upstreaming into `thinkpad-acpi`. Cell-group readings use a dedicated debug interface, are disabled by default, and remain locked to tested hardware configurations.
 
+**The magic debug key:** Cell-group voltage reads require unlocking the EC debug interface with an eight-byte key derived from the public `G2HT35WW` firmware. The module includes this key and supplies it automatically when the optional feature is enabled and authorization is needed. It is not your BIOS password or a device-unique secret for the tested firmware. Other firmware versions may differ. Ordinary temperature, current, and charger readings do not use it. See the [protocol notes](docs/protocol.md) for details.
+
 ## Quickstart
 
 ### Prerequisites (Debian/Ubuntu)
@@ -63,7 +65,7 @@ sudo insmod ./x230_ec_hwmon.ko experimental=1
 sensors 'x230_ec-*'
 ```
 
-Setting `experimental=1` enables testing on unverified machine profiles. Hardware validation is currently performed on a coreboot X230 running firmware `G2HT35WW`. See the [compatibility guide](docs/compatibility.md) for details on submitting hardware telemetry reports.
+The driver checks the EC firmware ID directly: `G2HT35WW` is accepted without a specific BIOS version. If the ID is unavailable, it falls back to an X230 model check for ordinary sensors. Setting `experimental=1` enables ordinary sensor testing on other EC versions; it does not bypass the cell-voltage firmware check. Hardware validation is currently performed on a coreboot X230 running firmware `G2HT35WW`. See the [compatibility guide](docs/compatibility.md) for details on submitting hardware telemetry reports.
 
 Unload an existing module before loading a replacement:
 ```sh

@@ -6,7 +6,7 @@ in {
   experimental = lib.mkOption {
    type = lib.types.bool;
    default = false;
-   description = "Explicitly bypass the ordinary sensor DMI guard for compatibility testing. Does not bypass the cell-voltage guard.";
+   description = "Explicitly allow unrecognized EC firmware for ordinary sensor testing. Does not bypass the cell-voltage firmware guard.";
   };
   cellVoltages = lib.mkOption {
    type = lib.types.bool;

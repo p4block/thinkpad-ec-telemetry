@@ -66,9 +66,8 @@ static int cells_snapshot(void)
  u8 saved[7], busy, name[12], maker[8];
  int ret, restore, i;
  long values[3], sum, pack;
- /* The Debian experimental DMI bypass must not enable raw RAM on other ECs. */
- if (!cell_voltages || !dmi_match(DMI_PRODUCT_NAME, "2325DV5") ||
-     !dmi_match(DMI_BIOS_VERSION, "CBET4000 fosc")) return -ENODATA;
+ /* Model fallback and experimental override never authorize unknown RAM layouts. */
+ if (!cell_voltages || !known_ec_layout) return -ENODATA;
  if (ACPI_FAILURE(acpi_acquire_mutex(NULL, EC_LOCK, 2000))) return -EBUSY;
  ret = ec_read(0x90, &busy);
  if (ret || busy & 0x80) { ret = ret ? ret : -EBUSY; goto unlock; }

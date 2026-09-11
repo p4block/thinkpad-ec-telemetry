@@ -10,9 +10,48 @@
 
 static bool experimental;
 module_param(experimental, bool, 0400);
-MODULE_PARM_DESC(experimental, "Explicit opt-in for testing other X230 firmware");
+MODULE_PARM_DESC(experimental, "Explicit opt-in for testing unrecognized EC firmware; never enables unknown debug layouts");
 #define EC_LOCK "\\_SB.PCI0.LPCB.EC.ECLK"
 static DEFINE_MUTEX(cache_lock);
+static bool known_ec_layout;
+
+/* Same build-ID registers used by coreboot's h8_build_id_and_function_spec_version.
+ * Read before any page selection or debug authentication. No BIOS-string dependency.
+ */
+static int check_ec_firmware(void)
+{
+ char id[9] = { 0 };
+ bool valid = true;
+ int i, ret = 0;
+ if (ACPI_FAILURE(acpi_acquire_mutex(NULL, EC_LOCK, 2000)))
+  return -EBUSY;
+ for (i = 0; i < 8; i++) {
+  u8 byte;
+  ret = ec_read(0xf0 + i, &byte);
+  if (ret) break;
+  id[i] = byte;
+  if (byte < 0x21 || byte > 0x7e) valid = false;
+ }
+ acpi_release_mutex(NULL, EC_LOCK);
+ known_ec_layout = !ret && valid && !strcmp(id, "G2HT35WW");
+ if (known_ec_layout) {
+  pr_info("x230_ec_hwmon: recognized EC firmware %s\n", id);
+  return 0;
+ }
+ if (experimental) {
+  pr_warn("x230_ec_hwmon: unverified EC firmware; ordinary sensors only\n");
+  return 0;
+ }
+ /* Model fallback only when no usable ID exists, not a known different build. */
+ if ((ret || !valid) &&
+     (dmi_match(DMI_PRODUCT_VERSION, "ThinkPad X230") ||
+      dmi_match(DMI_PRODUCT_NAME, "ThinkPad X230"))) {
+  pr_warn("x230_ec_hwmon: EC ID unavailable; X230 model fallback, ordinary sensors only\n");
+  return 0;
+ }
+ pr_err("x230_ec_hwmon: unsupported EC firmware; use experimental=1 for ordinary sensor testing\n");
+ return -ENODEV;
+}
 #include "cell-voltage.h"
 static struct platform_device *pdev;
 static unsigned long sampled;
@@ -230,10 +269,9 @@ static int __init x230_init(void)
 {
  struct device *hwmon;
  int ret;
- /* Deliberately narrow: no claims of compatibility with other EC firmware. */
- if (!experimental && (!dmi_match(DMI_PRODUCT_NAME, "2325DV5") ||
-     !dmi_match(DMI_BIOS_VERSION, "CBET4000 fosc")))
-  return -ENODEV;
+ ret = check_ec_firmware();
+ if (ret)
+  return ret;
  ret = snapshot();
  if (ret)
   return ret;
