@@ -7,7 +7,9 @@
       packages.x86_64-linux.default = pkgs.callPackage ./reader.nix {
         kernel = pkgs.linuxPackages_latest.kernel;
       };
+      packages.x86_64-linux.thinkpad-rotate = pkgs.callPackage ./tools/thinkpad-rotate {};
       nixosModules.default = import ./nixos-module.nix;
       checks.x86_64-linux.build = self.packages.x86_64-linux.default;
+      checks.x86_64-linux.rotation = self.packages.x86_64-linux.thinkpad-rotate;
     };
 }

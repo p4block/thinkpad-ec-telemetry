@@ -1,0 +1,2 @@
+# Raw two-axis device does not satisfy iio-sensor-proxy's three-axis input ABI.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="ThinkPad EC accelerometer", ENV{IIO_SENSOR_PROXY_TYPE}=""

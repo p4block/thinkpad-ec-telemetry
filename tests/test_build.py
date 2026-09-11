@@ -15,7 +15,7 @@ class BuildWrapper(unittest.TestCase):
             root = Path(tmp)
             src = root / 'Telegram Desktop' / 'module'
             src.mkdir(parents=True)
-            for name in ('build.sh', 'Makefile', 'x230_ec_hwmon.c', 'cell-voltage.h'):
+            for name in ('build.sh', 'Makefile', 'x230_ec_hwmon.c', 'cell-voltage.h', 'x230_ec_accel.c'):
                 shutil.copy2(ROOT / name, src / name)
             kernel = root / 'kernel'
             kernel.mkdir()
@@ -32,6 +32,7 @@ case "$dest" in *" "*) exit 9;; esac
 test -f "$dest/cell-voltage.h"
 printf '%s' "$dest" > "$TEST_BUILD_PATH"
 printf test > "$dest/x230_ec_hwmon.ko"
+printf accel > "$dest/x230_ec_accel.ko"
 ''')
             make.chmod(0o755)
             record = root / 'path'
@@ -39,6 +40,7 @@ printf test > "$dest/x230_ec_hwmon.ko"
                        PATH=str(bindir)+':'+os.environ['PATH'])
             subprocess.run([str(src/'build.sh')], env=env, check=True, capture_output=True)
             self.assertEqual((src/'x230_ec_hwmon.ko').read_text(), 'test')
+            self.assertEqual((src/'x230_ec_accel.ko').read_text(), 'accel')
             self.assertFalse(Path(record.read_text()).exists())
 
     def test_missing_kernel(self):

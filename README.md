@@ -40,6 +40,7 @@ The adapter is disconnected in this example, so zero charger readings do not mea
 
 ## Features
 
+* **Accelerometer (optional):** Raw X/Y Linux input device and opt-in Sway rotation via a small Rust daemon, with power-on-open and power-off-on-close. Tested on X230/G2HT35WW; no debug key. See [setup and limitations](docs/accelerometer.md).
 * **Thermal telemetry:** PCH temperature, CPU VRM/WLAN/memory/WWAN/VTT regulator area temperatures, and two temperature sources per battery.
 * **Battery current:** Instantaneous and EC-averaged readings with directional sign.
 * **Charger input:** IOUT signal monitoring and DC input wattage estimates based on empirical calibration at 20 V, including battery charging.
@@ -100,8 +101,8 @@ hardware.thinkpad-ec-telemetry = {
 ## Technical Details
 
 * **ACPI Safety:** Page and debug transactions acquire the ACPI EC mutex and restore shared state. Debug timeouts leave potentially in-flight request buffers untouched.
-* **Caching:** Implements a 10-second demand-driven cache; no background polling threads are created.
-* **Scope:** Exposes read-only measurements; internally writes page selectors and debug requests. Does not modify fan tables, adjust charging thresholds, or write to firmware flash memory.
+* **Caching:** Hwmon uses a 10-second demand-driven cache. The optional accelerometer polls only while an input consumer has it open.
+* **Scope:** Exposes read-only measurements; internally writes page selectors and debug requests. The optional accelerometer also controls sensor power and acquisition. Does not modify fan tables, adjust charging thresholds, or write to firmware flash memory.
 * **Artifacts:** Repository contains the driver, offline snapshot decoder, and [protocol documentation](docs/protocol.md). Proprietary firmware binaries are neither included nor required.
 
 ## Roadmap

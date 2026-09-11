@@ -1,6 +1,7 @@
 { config, lib, pkgs, ... }:
 let cfg = config.hardware.thinkpad-ec-telemetry;
 in {
+ imports = [ ./accelerometer.nix ];
  options.hardware.thinkpad-ec-telemetry = {
   enable = lib.mkEnableOption "experimental X230 EC sensors";
   experimental = lib.mkOption {

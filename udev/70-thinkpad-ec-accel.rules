@@ -1,0 +1,1 @@
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="ThinkPad EC accelerometer", SYMLINK+="input/thinkpad-ec-accel", TAG+="uaccess", ENV{LIBINPUT_IGNORE_DEVICE}="1", ENV{ACCEL_LOCATION}="base"
