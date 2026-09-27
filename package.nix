@@ -4,7 +4,7 @@ kernel.stdenv.mkDerivation {
   version = "0.2.0";
   src = lib.fileset.toSource {
     root = ./.;
-    fileset = lib.fileset.unions [ ./Makefile ./thinkpad_ec_hwmon.c ./thinkpad_ec_accel.c ./cell-voltage.h ];
+    fileset = lib.fileset.unions [ ./Makefile ./thinkpad_ec_hwmon.c ./thinkpad_ec_accel.c ./cell-voltage.h ./profiles.h ./ec-profile.h ];
   };
   nativeBuildInputs = kernel.moduleBuildDependencies;
   hardeningDisable = [ "pic" ];

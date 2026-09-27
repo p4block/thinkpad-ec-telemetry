@@ -66,7 +66,7 @@ static int cells_snapshot(void)
  u8 saved[7], busy, name[12], maker[8];
  int ret, restore, i;
  long values[3], sum, pack;
- /* Model fallback and experimental override never authorize unknown RAM layouts. */
+ /* Only the independently verified debug capability authorizes this RAM layout. */
  if (!cell_voltages || !known_ec_layout) return -ENODATA;
  if (ACPI_FAILURE(acpi_acquire_mutex(NULL, EC_LOCK, 2000))) return -EBUSY;
  ret = ec_read(0x90, &busy);

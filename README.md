@@ -15,6 +15,17 @@ another model or firmware revision is compatible.
 Desktop rotation lives in [thinkpad-rotate](https://github.com/p4block/thinkpad-rotate).
 This repository has no desktop daemon or rotation dependency.
 
+## More models and firmware
+
+Reports of partial or complete support are welcome. Run `python3 tools/report.py`
+and open a compatibility issue. [Adding support](docs/adding-support.md) covers
+explicit candidate-profile testing, schematic/firmware mapping, and validation.
+
+`profiles.h` separates reusable protocol/sensor maps from exact model/EC matches.
+A new firmware revision can reuse a verified profile; a different board map can
+be added without forking the driver. Temperature and motion support are tracked
+independently. Unknown hardware never silently inherits X230 behavior.
+
 ## NixOS
 
 Import `module.nix` or the flake's `nixosModules.default`:
@@ -59,6 +70,7 @@ MSC_TIMESTAMP. Raw counts need per-machine calibration in the consumer.
 T480 channels unavailable at registration are hidden. Reload hwmon to discover
 a newly attached battery. Visible channels that lose data return ENODATA.
 Temperatures are cached for ten seconds; firmware cache age is unknown.
+Both modules expose `selected_profile`, `firmware` and `verified` parameters.
 
 ## Evidence and limits
 

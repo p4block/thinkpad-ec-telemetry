@@ -15,14 +15,13 @@
 #include <linux/suspend.h>
 #include <linux/unaligned.h>
 
-#define EC_LOCK "\\_SB.PCI0.LPCB.EC.ECLK"
-#define MB_PORT 0x1610
+#include "ec-profile.h"
+#define MB_PORT (ec_profile->mailbox_port)
 #define NAME "ThinkPad EC accelerometer"
 static DEFINE_MUTEX(sensor_lock);
 static struct input_dev *sensor;
 static bool opened, suspended, owned;
 static bool active;
-static bool t480;
 static bool probe_only = true;
 module_param(probe_only, bool, 0444);
 MODULE_PARM_DESC(probe_only, "Query status only; do not register an input device or start acquisition");
@@ -114,11 +113,11 @@ static int stop_sensor(void)
   return 0;
  for (i = 0; i < 3; i++) {
   ret = mailbox(0x10, 0, data);
-  if (!ret && t480 && data[31])
+  if (!ret && ec_profile->check_command_errors && data[31])
    ret = -EIO;
   if (!ret) {
    ret = mailbox(0x14, 0, data);
-   if (!ret && t480 && get_unaligned_le32(data + 28))
+   if (!ret && ec_profile->check_command_errors && get_unaligned_le32(data + 28))
     ret = -EIO;
   }
   if (!ret) {
@@ -155,13 +154,13 @@ static int start_sensor(void)
   return -EBUSY;
  owned = true; /* A power-enable timeout still needs cleanup. */
  ret = mailbox(0x14, 1, data);
- if (!ret && t480 && get_unaligned_le32(data + 28))
+ if (!ret && ec_profile->check_command_errors && get_unaligned_le32(data + 28))
   ret = -EIO;
  if (ret)
   goto fail;
  msleep(100);
  ret = mailbox(0x10, 0x0a0200c8, data);
- if (!ret && t480 && data[31])
+ if (!ret && ec_profile->check_command_errors && data[31])
   ret = -EIO;
  if (ret)
   goto fail;
@@ -267,24 +266,10 @@ static int power_event(struct notifier_block *nb, unsigned long event, void *arg
 static struct notifier_block pm_notifier = { .notifier_call = power_event };
 static int __init accel_init(void)
 {
- u8 fw[8];
- int i, ret = 0;
- bool x230 = dmi_match(DMI_PRODUCT_VERSION, "ThinkPad X230") ||
-             dmi_match(DMI_PRODUCT_NAME, "ThinkPad X230");
- t480 = dmi_match(DMI_PRODUCT_VERSION, "ThinkPad T480") ||
-        dmi_match(DMI_PRODUCT_NAME, "ThinkPad T480") ||
-        dmi_match(DMI_PRODUCT_NAME, "T480");
- if (!x230 && !t480)
-  return -ENODEV;
- if (ACPI_FAILURE(acpi_acquire_mutex(NULL, EC_LOCK, 1000)))
-  return -EBUSY;
- for (i = 0; i < 8; i++) {
-  ret = ec_read(0xf0 + i, &fw[i]);
-  if (ret)
-   break;
- }
- acpi_release_mutex(NULL, EC_LOCK);
- if (ret || memcmp(fw, t480 ? "N24HT37W" : "G2HT35WW", 8))
+ int ret = select_ec_profile(TP_ACCEL);
+ if (ret)
+  return ret;
+ if (!ec_profile->mailbox_port)
   return -ENODEV;
  /* PNP motherboard resources are non-busy containers. Claim only these two
   * ports as their child; never remove reservations or touch EC3 at 1618.
@@ -295,12 +280,12 @@ static int __init accel_init(void)
   u8 data[32];
   mutex_lock(&sensor_lock);
   ret = mailbox(0x17, 0x82, data);
-  if (!ret && t480 && data[31])
+  if (!ret && ec_profile->check_command_errors && data[31])
    ret = -EIO;
   mutex_unlock(&sensor_lock);
   if (!ret)
    pr_info("thinkpad_ec_accel: %.8s status=%02x rate=%u filter=%u error=%02x (probe only)\n",
-           fw, data[0], get_unaligned_le16(data + 1), data[3], data[31]);
+           ec_firmware, data[0], get_unaligned_le16(data + 1), data[3], data[31]);
   else
    pr_err("thinkpad_ec_accel: status probe failed: %d\n", ret);
   release_region(MB_PORT, 2);
@@ -334,7 +319,7 @@ static int __init accel_init(void)
   unregister_pm_notifier(&pm_notifier);
   goto free;
  }
- pr_info("thinkpad_ec_accel: %.8s raw X/Y sensor registered; power on demand\n", fw);
+ pr_info("thinkpad_ec_accel: %.8s raw X/Y sensor registered; power on demand\n", ec_firmware);
  return 0;
 free:
  input_free_device(sensor);

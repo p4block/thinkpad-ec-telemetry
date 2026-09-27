@@ -1,5 +1,11 @@
 # Contributing
 
+Start with [adding support](docs/adding-support.md). Working raw readings, failed
+probes and partially mapped models are all useful reports. Use the compatibility
+issue template and `python3 tools/report.py`; no disassembly is required to
+submit a report. Contributors can map the remaining sensors in a later PR.
+
+
 Keep ordinary EC telemetry separate from optional debug access. No generic EC
 write interface, unsolicited charger/policy changes or unbounded busy waits.
 Preserve ACPI ECLK serialization and restoration on error. New channels should
@@ -11,8 +17,8 @@ serials, UUIDs, battery barcodes and other identifiers before posting public rep
 Do not upload complete EC dumps by default. Negative results are useful.
 
 Build with matching kernel headers; `nix build` checks the pinned
-reference build. Run `python3 -m unittest discover -s tests`. Tests exercise build
-packaging without hardware; they cannot establish EC protocol compatibility.
+reference build. Run `python3 -m unittest discover -s tests`. Tests exercise profile selection and EC transactions without hardware; they
+cannot establish physical compatibility.
 Hardware validation must check coexistence with ACPI battery reads, error handling,
 page restoration and unload/reload. A shared EC chip alone does not establish a
 compatible register map.

@@ -10,6 +10,13 @@
         inherit system;
         modules = [ self.nixosModules.default { system.stateVersion = "26.05"; hardware.thinkpadEc = { enable = true; accelerometer = true; }; } ];
       };
+      trial = nixpkgs.lib.nixosSystem {
+        inherit system;
+        modules = [ self.nixosModules.default {
+          system.stateVersion = "26.05";
+          hardware.thinkpadEc = { enable = true; accelerometer = true; profile = "x230"; allowUnsupported = true; };
+        } ];
+      };
     in {
       packages.${system}.default = driver;
       nixosModules.default = import ./module.nix;
@@ -17,12 +24,16 @@
         build = driver;
         tests = pkgs.runCommand "thinkpad-ec-tests" { nativeBuildInputs = [ pkgs.python3 pkgs.stdenv.cc ]; } ''
           cp -r ${./tests} tests
+          cp -r ${./tools} tools
           cp ${./thinkpad_ec_hwmon.c} thinkpad_ec_hwmon.c
           cp ${./thinkpad_ec_accel.c} thinkpad_ec_accel.c
+          cp ${./profiles.h} profiles.h
+          cp ${./ec-profile.h} ec-profile.h
           python3 -m unittest discover -s tests
           touch $out
         '';
         module = assert builtins.elem "thinkpad_ec_accel" machine.config.boot.kernelModules;
+          assert nixpkgs.lib.hasInfix "probe_only=1 allow_unsupported=1 profile=x230" trial.config.boot.extraModprobeConfig;
           pkgs.writeText "thinkpad-ec-options" machine.config.boot.extraModprobeConfig;
       };
     };

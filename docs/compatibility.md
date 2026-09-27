@@ -7,20 +7,21 @@
 | Other X230 firmware configurations | Candidates; reports needed |
 | Related Ivy Bridge ThinkPads / same MEC controller | Candidates; firmware protocol and board sensor mapping need checking |
 
-A common EC chip makes reuse plausible, but does not establish identical
-firmware addresses, temperature routing, channel units or ACPI locks.
-The driver reads the EC build ID from registers F0–F7 under ECLK. G2HT35WW
-is accepted regardless of BIOS vendor/version or machine-specific DMI strings.
-If that ID is unreadable or invalid, an exact ThinkPad X230 model match permits
-ordinary sensors. N24HT37W with T480 DMI identity selects the temperature-only T480 profile.
-Other readable firmware IDs require `experimental=1`.
-The ACPI ECLK lock is required in all cases.
+A common EC chip does not establish identical firmware addresses, temperature
+routing, units or ACPI locks. Both drivers now require exact model and readable
+EC-ID matches from `profiles.h`; automatic X230 model-only fallback is removed.
+The ACPI mutex is required in all cases. Verified temperature and acceleration
+features are recorded independently per match row.
 
-Cell reads require a positively identified G2HT35WW EC plus the tested
-SANYO/LNV-45N1023 battery format. Neither the X230 model fallback nor
-`experimental=1` bypasses this fixed-RAM-layout requirement. Cell readings
-remain disabled by default. The tested pack is aftermarket; its identity need
-not establish the origin or age of its cells.
+For unlisted hardware, see [explicit candidate-profile testing](adding-support.md).
+An unverified temperature test uses raw slot labels and disables electrical and
+debug channels. The old `experimental=1` option no longer exists.
+
+Cell reads require the separate `TP_CELLS` grant, exact G2HT35WW firmware and
+the tested SANYO/LNV-45N1023 battery format. They remain opt-in and are disabled
+when `allow_unsupported=1` is supplied. Copying a profile or adding a firmware
+revision does not automatically grant debug support. The tested pack is
+aftermarket; its identity does not establish the origin or age of its cells.
 
 Two captures showed three probable series-group voltages whose sum tracked
 pack voltage exactly, including a1mV change. Parallel cells share group voltage.
@@ -45,3 +46,15 @@ built successfully against the pinned Linux7.2.3 kernel; build-wrapper regressio
 checks passed for spaces and missing build trees; NixOS option evaluation generated
 the expected modprobe settings. No new hardware validation or expanded model
 support is implied by the repository extraction.
+
+Profile refactor: exact model/firmware allowlisting replaces the inherited X230
+fallback. Existing verified maps and mailbox behavior are preserved. Test
+coverage includes match-table entries, malformed/unknown selections, feature
+isolation, EC-ID failures and page restoration. Physical X230 retesting of this
+refactor remains outstanding; a build/test pass does not replace it.
+
+On 2026-09-27 the profile-based drivers passed their Nix build/checks and a live
+T480 reload: automatic `t480` / `N24HT37W` matching, ten available temperatures,
+and 24 concurrent temperature/battery batches over twelve seconds while fresh
+accelerometer frames continued. No new model or EC revision is claimed by this
+refactor; candidate reports still require the workflow above.

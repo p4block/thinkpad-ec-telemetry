@@ -17,10 +17,11 @@ class TemperaturePage(unittest.TestCase):
 #include <stddef.h>
 typedef unsigned char u8;
 #define EC_LOCK "test"
+#include "profiles.h"
+static const struct tp_ec_profile *ec_profile;
 #define ACPI_FAILURE(x) (x)
 #define pr_err_ratelimited(...) ((void)0)
-static bool t480_layout;
-static u8 temps[14], page;
+static u8 temps[TP_MAX_TEMPS], page;
 static int fail_at, operation, locks, reads;
 static int acpi_acquire_mutex(void *p, const char *s, int t) { locks++; return 0; }
 static void acpi_release_mutex(void *p, const char *s) { locks--; }
@@ -42,7 +43,7 @@ static void reset(int fail) {
 }
 int main(void) {
  for(int board=0;board<2;board++) {
-  t480_layout=board; int count=board?14:13;
+  ec_profile=&tp_profiles[board]; int count=ec_profile->temp_bytes;
   reset(0); assert(!snapshot() && page==7 && !locks && reads==count);
   for(int i=0;i<count;i++) assert(temps[i]==30+i);
   // Saved-page read, selection, verification and every data read may fail.
@@ -60,5 +61,5 @@ int main(void) {
         with tempfile.TemporaryDirectory() as tmp:
             src, exe = Path(tmp)/'page.c', Path(tmp)/'page'
             src.write_text(harness)
-            subprocess.run(['cc', str(src), '-o', str(exe)], check=True, capture_output=True)
+            subprocess.run(['cc', '-I', str(Path(__file__).resolve().parents[1]), str(src), '-o', str(exe)], check=True, capture_output=True)
             subprocess.run([str(exe)], check=True)

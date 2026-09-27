@@ -8,62 +8,16 @@
 #include <linux/mutex.h>
 #include <linux/platform_device.h>
 
-static bool experimental;
-module_param(experimental, bool, 0400);
-MODULE_PARM_DESC(experimental, "Explicit opt-in for testing unrecognized EC firmware; never enables unknown debug layouts");
-#define EC_LOCK "\\_SB.PCI0.LPCB.EC.ECLK"
+#include "ec-profile.h"
 static DEFINE_MUTEX(cache_lock);
-static bool known_ec_layout; /* X230 only: also guards optional debug access. */
-static bool t480_layout;
-static unsigned long t480_present;
-
-/* Same build-ID registers used by coreboot's h8_build_id_and_function_spec_version.
- * Read before any page selection or debug authentication. No BIOS-string dependency.
- */
-static int check_ec_firmware(void)
-{
- char id[9] = { 0 };
- bool valid = true;
- int i, ret = 0;
- if (ACPI_FAILURE(acpi_acquire_mutex(NULL, EC_LOCK, 2000)))
-  return -EBUSY;
- for (i = 0; i < 8; i++) {
-  u8 byte;
-  ret = ec_read(0xf0 + i, &byte);
-  if (ret) break;
-  id[i] = byte;
-  if (byte < 0x21 || byte > 0x7e) valid = false;
- }
- acpi_release_mutex(NULL, EC_LOCK);
- known_ec_layout = !ret && valid && !strcmp(id, "G2HT35WW");
- t480_layout = !ret && valid && !strcmp(id, "N24HT37W") &&
-  (dmi_match(DMI_PRODUCT_VERSION, "ThinkPad T480") ||
-   dmi_match(DMI_PRODUCT_NAME, "ThinkPad T480") ||
-   dmi_match(DMI_PRODUCT_NAME, "T480"));
- if (known_ec_layout || t480_layout) {
-  pr_info("thinkpad_ec_hwmon: recognized EC firmware %s\n", id);
-  return 0;
- }
- if (experimental) {
-  pr_warn("thinkpad_ec_hwmon: unverified EC firmware; ordinary sensors only\n");
-  return 0;
- }
- /* Model fallback only when no usable ID exists, not a known different build. */
- if ((ret || !valid) &&
-     (dmi_match(DMI_PRODUCT_VERSION, "ThinkPad X230") ||
-      dmi_match(DMI_PRODUCT_NAME, "ThinkPad X230"))) {
-  pr_warn("thinkpad_ec_hwmon: EC ID unavailable; X230 model fallback, ordinary sensors only\n");
-  return 0;
- }
- pr_err("thinkpad_ec_hwmon: unsupported EC firmware; use experimental=1 for ordinary sensor testing\n");
- return -ENODEV;
-}
+static bool known_ec_layout; /* Exact debug authorization, separate from a map. */
+static unsigned long present;
 #include "cell-voltage.h"
 static struct platform_device *pdev;
 static unsigned long sampled;
 static bool attempted;
 static int sample_error;
-static u8 temps[14];
+static u8 temps[TP_MAX_TEMPS];
 static unsigned long voltage_sampled;
 static bool voltage_attempted;
 static int voltage_error;
@@ -72,39 +26,40 @@ static unsigned long battery_sampled;
 static bool battery_attempted;
 static int battery_error;
 static s16 battery_ma[2];
-static const u8 indices[] = { 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
-static const char * const labels[] = {
- "CPU (EC)", "CPU VRM area", "WLAN area", "Battery 0 source 2",
- "Battery 1 source 2", "Battery 0 source 1", "Battery 1 source 1",
- "Memory top", "WWAN area", "Memory bottom", "PCH", "VTT regulator area"
+static const char * const raw_labels[TP_MAX_TEMPS] = {
+ "EC slot 0", "EC slot 1", "EC slot 2", "EC slot 3",
+ "EC slot 4", "EC slot 5", "EC slot 6", "EC slot 7",
+ "EC slot 8", "EC slot 9", "EC slot 10", "EC slot 11",
+ "EC slot 12", "EC slot 13", "EC slot 14", "EC slot 15"
 };
-
-/* N24HT37W tables 0x30358/0x30374; diode locations from NM-B501 sheet 56.
- * Keep untraced source names explicit instead of borrowing X230 labels.
- */
-static const char * const t480_labels[] = {
- "CPU (EC)", "EC source 0", "CPU VRM area", "EC slot 3",
- "Battery 0 source 2", "Battery 1 source 2",
- "Battery 0 source 1", "Battery 1 source 1",
- "Fan area", "DIMM area", "WWAN area", "EC slot 11",
- "dGPU VRM area", "WLAN area"
-};
+static int temp_count(void)
+{
+ return verified ? ec_profile->temp_count : ec_profile->temp_bytes;
+}
+static int temp_slot(int channel)
+{
+ return verified ? ec_profile->temps[channel].slot : channel;
+}
+static bool electrical_supported(void)
+{
+ return verified && !allow_unsupported && ec_profile->x230_electrical;
+}
 
 /* Caller serializes Linux readers; ECLK serializes battery AML page use. */
 static int snapshot(void)
 {
- u8 saved, verify, next[14];
- int count = t480_layout ? 14 : 13;
+ u8 saved, verify, next[TP_MAX_TEMPS];
+ int count = ec_profile->temp_bytes;
  int ret, restore, i;
  if (ACPI_FAILURE(acpi_acquire_mutex(NULL, EC_LOCK, 2000)))
   return -EBUSY;
  ret = ec_read(0x81, &saved);
  if (ret)
   goto unlock;
- ret = ec_write(0x81, 0x60);
+ ret = ec_write(0x81, ec_profile->temp_page);
  if (!ret)
   ret = ec_read(0x81, &verify);
- if (!ret && verify != 0x60)
+ if (!ret && verify != ec_profile->temp_page)
   ret = -EIO;
  for (i = 0; !ret && i < count; i++)
   ret = ec_read(0xa0 + i, &next[i]);
@@ -128,15 +83,19 @@ unlock:
 static umode_t visible(const void *data, enum hwmon_sensor_types type,
                       u32 attr, int channel)
 {
- if (t480_layout && (type != hwmon_temp || !(t480_present & BIT(channel))))
+ if (type == hwmon_temp) {
+  if (channel >= temp_count())
+   return 0;
+  if (verified && ec_profile->hide_unavailable && !(present & BIT(channel)))
+   return 0;
+ } else if (!electrical_supported()) {
   return 0;
- if (type == hwmon_temp && channel >= (t480_layout ? 14 : ARRAY_SIZE(indices)))
-  return 0;
+ }
  if (type == hwmon_curr)
   return attr == hwmon_curr_input || attr == hwmon_curr_label ? 0444 : 0;
  if (type == hwmon_power)
   return attr == hwmon_power_input || attr == hwmon_power_label ? 0444 : 0;
- if (type == hwmon_in && channel && !cell_voltages)
+ if (type == hwmon_in && channel && (!cell_voltages || !known_ec_layout))
   return 0;
  if (type == hwmon_in)
   return attr == hwmon_in_input || attr == hwmon_in_label ? 0444 : 0;
@@ -241,7 +200,7 @@ static int read_temp(struct device *dev, enum hwmon_sensor_types type,
  }
  ret = sample_error;
  if (!ret) {
-  u8 raw = temps[t480_layout ? channel : indices[channel]];
+  u8 raw = temps[temp_slot(channel)];
   if (raw == 0x80)
    ret = -ENODATA;
   else
@@ -270,7 +229,7 @@ static int read_label(struct device *dev, enum hwmon_sensor_types type,
  }
  if (type != hwmon_temp || attr != hwmon_temp_label)
   return -EOPNOTSUPP;
- *str = t480_layout ? t480_labels[channel] : labels[channel];
+ *str = verified ? ec_profile->temps[channel].label : raw_labels[channel];
  return 0;
 }
 static const struct hwmon_ops ops = {
@@ -284,29 +243,30 @@ static const struct hwmon_channel_info * const channels[] = {
  HWMON_CHANNEL_INFO(power, HWMON_P_INPUT | HWMON_P_LABEL),
  HWMON_CHANNEL_INFO(curr, HWMON_C_INPUT | HWMON_C_LABEL, HWMON_C_INPUT | HWMON_C_LABEL),
  HWMON_CHANNEL_INFO(temp, TEMP, TEMP, TEMP, TEMP, TEMP, TEMP,
-                         TEMP, TEMP, TEMP, TEMP, TEMP, TEMP, TEMP, TEMP), NULL
+                         TEMP, TEMP, TEMP, TEMP, TEMP, TEMP, TEMP, TEMP, TEMP, TEMP), NULL
 };
 static const struct hwmon_chip_info chip = { .ops = &ops, .info = channels };
-static int __init x230_init(void)
+static int __init hwmon_init(void)
 {
  struct device *hwmon;
  int ret, i;
- ret = check_ec_firmware();
+ ret = select_ec_profile(TP_HWMON);
  if (ret)
   return ret;
+ known_ec_layout = !allow_unsupported && tp_feature_verified(TP_CELLS) && ec_profile->g2ht35ww_cells &&
+                   !strcmp(ec_firmware, "G2HT35WW");
  ret = snapshot();
  if (ret)
   return ret;
  sampled = jiffies;
  attempted = true;
- if (t480_layout)
-  for (i = 0; i < ARRAY_SIZE(temps); i++)
-   if (temps[i] != 0x80)
-    t480_present |= BIT(i);
+ for (i = 0; i < temp_count(); i++)
+  if (temps[temp_slot(i)] != 0x80)
+   present |= BIT(i);
  pdev = platform_device_register_simple("thinkpad_ec_hwmon", -1, NULL, 0);
  if (IS_ERR(pdev))
   return PTR_ERR(pdev);
- hwmon = devm_hwmon_device_register_with_info(&pdev->dev, t480_layout ? "t480_ec" : "x230_ec",
+ hwmon = devm_hwmon_device_register_with_info(&pdev->dev, verified ? ec_profile->hwmon_name : "thinkpad_ec_test",
                                               NULL, &chip, NULL);
  if (IS_ERR(hwmon)) {
   ret = PTR_ERR(hwmon);
@@ -315,12 +275,12 @@ static int __init x230_init(void)
  }
  return 0;
 }
-static void __exit x230_exit(void)
+static void __exit hwmon_exit(void)
 {
  platform_device_unregister(pdev);
 }
-module_init(x230_init);
-module_exit(x230_exit);
+module_init(hwmon_init);
+module_exit(hwmon_exit);
 /* GPL-compatible module tag; source is licensed under WTFPL v2. */
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("ThinkPad X230 G2HT35WW and T480 N24HT37W cached EC telemetry");
