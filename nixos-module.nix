@@ -3,7 +3,7 @@ let cfg = config.hardware.thinkpad-ec-telemetry;
 in {
  imports = [ ./accelerometer.nix ];
  options.hardware.thinkpad-ec-telemetry = {
-  enable = lib.mkEnableOption "experimental X230 EC sensors";
+  enable = lib.mkEnableOption "firmware-checked ThinkPad X230/T480 EC sensors";
   experimental = lib.mkOption {
    type = lib.types.bool;
    default = false;

@@ -28,7 +28,7 @@ typedef unsigned char u8;
 #define pr_info(...) ((void)0)
 #define pr_warn(...) ((void)0)
 #define pr_err(...) ((void)0)
-static bool experimental, known_ec_layout, model, lock_fail, read_fail;
+static bool experimental, known_ec_layout, model, t480_model, t480_layout, lock_fail, read_fail;
 static const char *fw;
 static int acpi_acquire_mutex(void *p, const char *s, int t) { return lock_fail; }
 static void acpi_release_mutex(void *p, const char *s) {}
@@ -38,12 +38,20 @@ static int ec_read(int addr, u8 *v) {
  *v=fw[addr-0xf0]; return 0;
 }
 static bool dmi_match(int field, const char *value) {
- assert(!strcmp(value,"ThinkPad X230")); return model;
+ if (!strcmp(value,"ThinkPad X230")) return model;
+ return t480_model;
 }
 '''+source[start:end]+r'''
 int main(void) {
  fw="G2HT35WW";
  assert(check_ec_firmware()==0 && known_ec_layout); /* no DMI required */
+ fw="N24HT37W";
+ assert(check_ec_firmware()==-ENODEV && !known_ec_layout && !t480_layout);
+ t480_model=true;
+ assert(check_ec_firmware()==0 && !known_ec_layout && t480_layout);
+ fw="N24HT99W";
+ assert(check_ec_firmware()==-ENODEV && !t480_layout);
+ t480_model=false;
  fw="G2HT99WW"; model=true;
  assert(check_ec_firmware()==-ENODEV && !known_ec_layout);
  experimental=true;
