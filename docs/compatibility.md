@@ -3,6 +3,7 @@
 | Platform / EC | Status |
 |---|---|
 | X230, product2325DV5, coreboot CBET4000 fosc, EC G2HT35WW | Ordinary sensors and optional cell reads tested on Linux7.2.3 |
+| T480, coreboot, EC N24HT37W | Temperature-only profile tested on Linux 7.2.7; [evidence](t480.md) |
 | Other X230 firmware configurations | Candidates; reports needed |
 | Related Ivy Bridge ThinkPads / same MEC controller | Candidates; firmware protocol and board sensor mapping need checking |
 
@@ -11,7 +12,8 @@ firmware addresses, temperature routing, channel units or ACPI locks.
 The driver reads the EC build ID from registers F0–F7 under ECLK. G2HT35WW
 is accepted regardless of BIOS vendor/version or machine-specific DMI strings.
 If that ID is unreadable or invalid, an exact ThinkPad X230 model match permits
-ordinary sensors. A different readable firmware ID requires `experimental=1`.
+ordinary sensors. N24HT37W with T480 DMI identity selects the temperature-only T480 profile.
+Other readable firmware IDs require `experimental=1`.
 The ACPI ECLK lock is required in all cases.
 
 Cell reads require a positively identified G2HT35WW EC plus the tested

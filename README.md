@@ -8,6 +8,15 @@ This project originated from debugging idle power consumption on an X230 by anal
 
 Special thanks to [thinkpad-ec](https://github.com/hamishcoleman/thinkpad-ec).
 
+## T480 support
+
+T480 with EC **N24HT37W** is supported for temperatures on tested coreboot ACPI.
+It exposes CPU, board-area and battery temperatures as `t480_ec`; charger,
+current and debug cell channels remain X230-only. The module filename stays
+`x230_ec_hwmon` for compatibility. See [mapping and validation](docs/t480.md).
+T480 motion support is maintained separately in
+[t480-ec-accel](https://github.com/p4block/t480-ec-accel).
+
 ## Output Example
 
 Reading from a coreboot X230 running on battery with the optional cell-voltage feature enabled:
